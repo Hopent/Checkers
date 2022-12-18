@@ -1,0 +1,825 @@
+////////////////////////////////////////////////////////////
+// Headers
+////////////////////////////////////////////////////////////
+#include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
+#include <cmath>
+#include <ctime>
+#include <cstdlib>
+#include <iostream>
+#include <windows.h>
+
+int turn = 3;
+sf::RenderWindow window(sf::VideoMode(960, 960, 32), "Warcaby",
+	sf::Style::Titlebar | sf::Style::Resize | sf::Style::Close);
+
+void wyswietl_tablice(int board[10][10]) {
+	std::cout << std::endl;
+	for (int i = 0; i < 10; i++) {
+		for (int j = 0; j < 10; j++) {
+			std::cout << board[i][j] << " ";
+		}
+		std::cout << std::endl;
+	}
+}
+
+
+struct wymuszone_ruchy {
+	int selected_piece_x = -1;
+	int selected_piece_y = -1;
+	int wymus = -1;
+	int continue_i = -1;
+	int continue_j = -1;
+};
+
+void draw_game_state(int board[10][10], int board_start_position_x, int board_start_position_y) {
+	sf::Texture game_board;
+	game_board.loadFromFile("mapa10x10.jpg");
+	sf::Sprite sprite_game_board(game_board);
+	window.draw(sprite_game_board);
+	sf::CircleShape black_pawn[20];
+	sf::CircleShape black_king[20];
+	sf::CircleShape white_pawn[20];
+	sf::CircleShape white_king[20];
+	sf::CircleShape possible_move[20];
+	sf::CircleShape obramowka[20];
+
+
+	for (int i = 0; i < 20; i++) {
+		black_pawn[i].setRadius(44);
+		black_pawn[i].setOutlineColor(sf::Color::Red);
+		black_pawn[i].setOutlineThickness(5);
+		black_pawn[i].setFillColor(sf::Color(0, 0, 0, 255));
+
+		black_king[i].setRadius(44);
+		black_king[i].setOutlineColor(sf::Color(250, 150, 100));
+		black_king[i].setOutlineThickness(5);
+		black_king[i].setFillColor(sf::Color(0, 0, 0, 255));
+
+		white_pawn[i].setRadius(44);
+		white_pawn[i].setOutlineColor(sf::Color::Red);
+		white_pawn[i].setOutlineThickness(5);
+
+		white_king[i].setRadius(44);
+		white_king[i].setOutlineColor(sf::Color(250, 150, 100));
+		white_king[i].setOutlineThickness(5);
+
+		possible_move[i].setRadius(47);
+		possible_move[i].setFillColor(sf::Color(0, 255, 0, 110));
+
+		obramowka[i].setRadius(30);
+		obramowka[i].setFillColor(sf::Color(255, 0, 0, 80));
+	}
+	int variable = 0;
+	for (int i = 0; i < 10; i++) {
+		for (int j = 0; j < 10; j++) {
+			if (board[i][j] == 2 && i == 9) {
+				board[i][j] = 20; // make king
+			}
+			if (board[i][j] == 3 && i == 0) {
+				board[i][j] = 30; // make king	
+			}
+			if (board[i][j] == 2 || board[i][j] == 52) {
+				black_pawn[i].setPosition((j * 96) + 4 + board_start_position_x, (i * 96) + 3 + board_start_position_y);
+				window.draw(black_pawn[i]);
+			}
+			if (board[i][j] == 20 || board[i][j] == 70) {
+				black_king[i].setPosition((j * 96) + 4 + board_start_position_x, (i * 96) + 3 + board_start_position_y);
+				window.draw(black_king[i]);
+			}
+			if (board[i][j] == 3 || board[i][j] == 53) {
+				white_pawn[i].setPosition((j * 96) + 4 + board_start_position_x, (i * 96) + 3 + board_start_position_y);
+				window.draw(white_pawn[i]);
+			}
+			if (board[i][j] == 30 || board[i][j] == 80) {
+				white_king[i].setPosition((j * 96) + 4 + board_start_position_x, (i * 96) + 3 + board_start_position_y);
+				window.draw(white_king[i]);
+			}
+			if (board[i][j] == 99) {
+				possible_move[i].setPosition((j * 96) + board_start_position_x, (i * 96) + board_start_position_y);
+				window.draw(possible_move[i]);
+			}
+			if (board[i][j] == 52 || board[i][j] == 70 || board[i][j] == 53 || board[i][j] == 80) {
+				obramowka[i].setPosition((j * 96) + 18 + board_start_position_x, (i * 96) + 18 + board_start_position_y);
+				window.draw(obramowka[i]);
+			}
+		}
+	}
+}
+
+
+
+
+//sprawdza ktore jednostki moga zaatakowac i zwieksza ich wartosc o 50, aby mozna bylo je wyroznic rysujac
+//Jesli moze jakakolwiek jednostka zaatakowac to jest to ruch wymuszony, dlatego przed każdym ruchem należy sprawdzic czy sa takie wymuszone ruchy
+//Checks overall player attack opportunities, and changes the values on the board (piece that are incremented by 50, are the pieces that are allowed to attack)
+bool check_attack_opportunity(int gracz, int board[10][10], int continue_i, int continue_j) {
+	int enemy = -1;
+	if (gracz == 3) { enemy = 2; }
+	if (gracz == 2) { enemy = 3; }
+	bool can_attack = false;
+	if (continue_i != -1 && continue_j != -1) {
+		int i = continue_i;
+		int j = continue_j;
+		if (gracz == 2) {
+			if (board[i][j] == 2 || board[i][j] == 20) {
+				if (board[i + 1][j - 1] == enemy || board[i + 1][j - 1] == enemy * 10) {
+					if (board[i + 2][j - 2] == 1) {
+						//dol_lewo
+						board[i][j] = board[i][j] + 50;
+						can_attack = true;
+					}
+				}
+				if (board[i + 1][j + 1] == enemy || board[i + 1][j + 1] == enemy * 10) {
+					if (board[i + 2][j + 2] == 1) {
+						//dol_prawo
+						if (board[i][j] < 50) {
+							board[i][j] = board[i][j] + 50;
+						}
+						can_attack = true;
+					}
+				}
+			}
+			if (board[i][j] == 20) {
+				if (board[i - 1][j - 1] == enemy || board[i - 1][j - 1] == enemy * 10) {
+					if (board[i - 2][j - 2] == 1) {
+						//gora_lewo
+						board[i][j] = board[i][j] + 50;
+						can_attack = true;
+					}
+				}
+				if (board[i - 1][j + 1] == enemy || board[i - 1][j + 1] == enemy * 10) {
+					if (board[i - 2][j + 2] == 1) {
+						//gora_prawo
+						if (board[i][j] < 50) {
+							board[i][j] = board[i][j] + 50;
+						}
+						can_attack = true;
+					}
+				}
+			}
+		}
+
+		if (gracz == 3) {
+			if (board[i][j] == 3 || board[i][j] == 30) {
+				if (board[i - 1][j - 1] == enemy || board[i - 1][j - 1] == enemy * 10) {
+					if (board[i - 2][j - 2] == 1) {
+						//gora_lewo
+						board[i][j] = board[i][j] + 50;
+						can_attack = true;
+					}
+				}
+				if (board[i - 1][j + 1] == enemy || board[i - 1][j + 1] == enemy * 10) {
+					if (board[i - 2][j + 2] == 1) {
+						//gora_prawo
+						if (board[i][j] < 50) {
+							board[i][j] = board[i][j] + 50;
+						}
+						can_attack = true;
+					}
+				}
+
+
+			}
+			if (board[i][j] == 30) {
+				if (board[i + 1][j - 1] == enemy || board[i + 1][j - 1] == enemy * 10) {
+					if (board[i + 2][j - 2] == 1) {
+						//dol_lewo
+						board[i][j] = board[i][j] + 50;
+						can_attack = true;
+					}
+				}
+				if (board[i + 1][j + 1] == enemy || board[i + 1][j + 1] == enemy * 10) {
+					if (board[i + 2][j + 2] == 1) {
+						//dol_prawo
+						if (board[i][j] < 50) {
+							board[i][j] = board[i][j] + 50;
+						}
+						can_attack = true;
+					}
+				}
+			}
+		}
+	}
+	else {
+		for (int i = 0; i < 10; i++) {
+			for (int j = 0; j < 10; j++) {
+				if (gracz == 2) {
+					if (board[i][j] == 2 || board[i][j] == 20) {
+						if (board[i + 1][j - 1] == enemy || board[i + 1][j - 1] == enemy * 10) {
+							if (board[i + 2][j - 2] == 1) {
+								//dol_lewo
+								board[i][j] = board[i][j] + 50;
+								can_attack = true;
+							}
+						}
+						if (board[i + 1][j + 1] == enemy || board[i + 1][j + 1] == enemy * 10) {
+							if (board[i + 2][j + 2] == 1) {
+								//dol_prawo
+								if (board[i][j] < 50) {
+									board[i][j] = board[i][j] + 50;
+								}
+								can_attack = true;
+							}
+						}
+					}
+					if (board[i][j] == 20) {
+						if (board[i - 1][j - 1] == enemy || board[i - 1][j - 1] == enemy * 10) {
+							if (board[i - 2][j - 2] == 1) {
+								//gora_lewo
+								board[i][j] = board[i][j] + 50;
+								can_attack = true;
+							}
+						}
+						if (board[i - 1][j + 1] == enemy || board[i - 1][j + 1] == enemy * 10) {
+							if (board[i - 2][j + 2] == 1) {
+								//gora_prawo
+								if (board[i][j] < 50) {
+									board[i][j] = board[i][j] + 50;
+								}
+								can_attack = true;
+							}
+						}
+					}
+				}
+
+				if (gracz == 3) {
+					if (board[i][j] == 3 || board[i][j] == 30) {
+						if (board[i - 1][j - 1] == enemy || board[i - 1][j - 1] == enemy * 10) {
+							if (board[i - 2][j - 2] == 1) {
+								//gora_lewo
+								board[i][j] = board[i][j] + 50;
+								can_attack = true;
+							}
+						}
+						if (board[i - 1][j + 1] == enemy || board[i - 1][j + 1] == enemy * 10) {
+							if (board[i - 2][j + 2] == 1) {
+								//gora_prawo
+								if (board[i][j] < 50) {
+									board[i][j] = board[i][j] + 50;
+								}
+								can_attack = true;
+							}
+						}
+
+
+					}
+					if (board[i][j] == 30) {
+						if (board[i + 1][j - 1] == enemy || board[i + 1][j - 1] == enemy * 10) {
+							if (board[i + 2][j - 2] == 1) {
+								//dol_lewo
+								board[i][j] = board[i][j] + 50;
+								can_attack = true;
+							}
+						}
+						if (board[i + 1][j + 1] == enemy || board[i + 1][j + 1] == enemy * 10) {
+							if (board[i + 2][j + 2] == 1) {
+								//dol_prawo
+								if (board[i][j] < 50) {
+									board[i][j] = board[i][j] + 50;
+								}
+								can_attack = true;
+							}
+						}
+					}
+				}
+
+			}
+		}
+	}
+	return can_attack;
+}
+
+
+//sprawdza klikniety pionek czy moze zaatakowac i pokazuje jego sciezki
+//Koloruje mozliwe pola do wyboru podczas ataku
+//Checks selected piece for attack opportunity and draw them on the board
+//It also changes values on the board to 99, it means that selected piece can attack this way
+bool can_attackk(int gracz, int board[10][10], int i, int j) {
+	int enemy = -1;
+	if (gracz == 3) { enemy = 2; }
+	if (gracz == 2) { enemy = 3; }
+	//struktura -> selected -> wymuszone == 1;
+	bool attack = false;
+
+
+	if (gracz == 2) {
+		if (board[i][j] == 52 || board[i][j] == 70) {
+			if (board[i + 1][j - 1] == 3 || board[i + 1][j - 1] == 30) {
+				if (board[i + 2][j - 2] == 1) {
+					board[i + 2][j - 2] = 99;
+					bool attack = true;
+					//atak_dol_lewo
+				}
+			}
+			if (board[i + 1][j + 1] == 3 || board[i + 1][j + 1] == 30) {
+				if (board[i + 2][j + 2] == 1) {
+					board[i + 2][j + 2] = 99;
+					bool attack = true;
+					//atak_dol_prawo
+				}
+			}
+		}
+		if (board[i][j] == 70) {
+			if (board[i - 1][j - 1] == 3 || board[i - 1][j - 1] == 30) {
+				if (board[i - 2][j - 2] == 1) {
+					board[i - 2][j + 2] = 99;
+					bool attack = true;
+					//atak_gora_lewo
+				}
+			}
+			if (board[i - 1][j + 1] == 3 || board[i - 1][j + 1] == 30) {
+				if (board[i - 2][j + 2] == 1) {
+					board[i - 2][j + 2] = 99;
+					bool attack = true;
+					//atak_gora_prawo
+				}
+			}
+		}
+	}
+	if (gracz == 3) {
+		if (board[i][j] == 53 || board[i][j] == 80) {
+			if (board[i - 1][j - 1] == 2 || board[i - 1][j - 1] == 20) {
+				if (board[i - 2][j - 2] == 1) {
+					board[i - 2][j - 2] = 99;
+					bool attack = true;
+					//atak_gora_lewo
+				}
+			}
+			if (board[i - 1][j + 1] == 2 || board[i - 1][j + 1] == 20) {
+				if (board[i - 2][j + 2] == 1) {
+					board[i - 2][j + 2] = 99;
+					bool attack = true;
+					//atak_gora_prawo
+				}
+			}
+		}
+		if (board[i][j] == 80) {
+			if (board[i + 1][j - 1] == 2 || board[i + 1][j - 1] == 20) {
+				if (board[i + 2][j - 2] == 1) {
+					board[i + 2][j - 2] = 99;
+					bool attack = true;
+					//atak_dol_lewo
+				}
+			}
+			if (board[i + 1][j + 1] == 2 || board[i + 1][j + 1] == 20) {
+				if (board[i + 2][j + 2] == 1) {
+					board[i + 2][j + 2] = 99;
+					bool attack = true;
+					//atak_dol_prawo
+				}
+			}
+		}
+	}
+	return attack;
+
+
+}
+
+//This function checks is the value passed is a enemy to the player -> gracz
+bool is_enemy(int board[10][10], int gracz, int enemy) {
+	if (gracz == 2) {
+		if (enemy == 3 || enemy == 30 || enemy == 53 || enemy == 80) {
+			return true;
+		}
+	}
+	if (gracz == 3) {
+		if (enemy == 2 || enemy == 20 || enemy == 52 || enemy == 70) {
+			return true;
+		}
+	}
+	return false;
+}
+
+//This function checks:
+//Do a player have pieces on the board, 
+//Do a player can move
+//Do a player can attack
+//If any of this statement is True, then this player lose the game
+//Returns 0 if there is a validate move, or Returns 1 if there isnt any validate moves.
+int can_move(int board[10][10]) {
+	int enemy = -1;
+	bool player = false;
+	bool player_attack = false;
+	bool player_move = false;
+	bool up_left = false, up_right = false, down_left = false, down_right = false;
+	for (int i = 0; i < 10; i++) {
+		for (int j = 0; j < 10; j++) {
+			if (!player) {//sprawdza czy gracz kazdy z graczy ma przynajmniej jednego pionka
+				if (board[i][j] == turn || board[i][j] == turn * 10 || board[i][j] == turn + 50 || (board[i][j] == (turn * 10) + 50)) {
+					player = true;
+				}
+			}
+			if ((!player_move || !player_attack) && player) {
+				if (turn == 2) {
+					if (board[i][j] == 20 || board[i][j] == 70) {
+						if ((board[i - 1][j - 1] == 1 || board[i - 1][j - 1] == 99) && j > 0) { up_left = true; player_move = true; }
+						if ((board[i - 1][j + 1] == 1 || board[i - 1][j + 1] == 99) && j < 9) { up_right = true; player_move = true; }
+					}
+					if ((board[i][j] == 2 || board[i][j] == 52) || (board[i][j] == 20 || board[i][j] == 70)) {
+						if ((board[i + 1][j - 1] == 1 || board[i + 1][j - 1] == 99) && j > 0) { down_left = true; player_move = true; }
+						if ((board[i + 1][j + 1] == 1 || board[i + 1][j + 1] == 99) && j < 9) { down_right = true; player_move = true; }
+					}
+				}
+				if (turn == 3) {
+					if ((board[i][j] == 3 || board[i][j] == 53) || (board[i][j] == 30 || board[i][j] == 80)) {
+						if ((board[i - 1][j - 1] == 1 || board[i - 1][j - 1] == 99) && j > 0) { up_left = true; player_move = true;}
+						if ((board[i - 1][j + 1] == 1 || board[i - 1][j + 1] == 99) && j < 9) { up_right = true; player_move = true;}
+					}
+					if (board[i][j] == 30 || board[i][j] == 80) {
+						if ((board[i + 1][j - 1] == 1 || board[i + 1][j - 1] == 99) && j > 0) { down_left = true; player_move = true;}
+						if ((board[i + 1][j + 1] == 1 || board[i - 1][j - 1] == 99) && j < 9) { down_right = true; player_move = true;}
+					}
+				}
+
+				if (player && player_move) {
+					return 0;
+				}
+
+				if (board[i][j] == 2 || board[i][j] == 20) { enemy = 3; }
+				if (board[i][j] == 3 || board[i][j] == 30) { enemy = 2; } //jesli moze zaatakowac to moze tez sie ruszyc
+				int zmienna = board[i + 1][j - 1];
+				if (is_enemy(board, turn, board[i + 1][j - 1]) && board[i + 2][j - 2] == 1 && i < 8 && j > 1) {
+					down_left = true;
+				}
+
+				if (is_enemy(board, turn, board[i + 1][j + 1]) && board[i + 2][j + 2] == 1 && i < 8 && j < 8) {
+					down_right = true;
+				}
+				if (is_enemy(board, turn, board[i - 1][j - 1]) && board[i - 2][j - 2] == 1 && i > 1 && j > 1) {
+					up_left = true;
+				}
+				if (is_enemy(board, turn, board[i - 1][j + 1]) && board[i - 2][j + 2] == 1 && i > 1 && j < 8) {
+					up_right = true;
+				}
+				if (board[i][j] == 2 || board[i][j] == 52) {
+					if (down_left || down_right) { player_attack = true; }
+				}
+				if (board[i][j] == 3 || board[i][j] == 53) {
+					if (up_left || up_right) { player_attack = true; }
+				}
+				if (board[i][j] == turn * 10 || board[i][j] == (turn*10)+50) {
+					if (up_left || up_right || down_left || down_right) { player_attack = true; }
+				}
+
+				if (player && player_attack) {
+					return 0;
+				}
+			}
+		}
+	}
+	
+	//std::cout <<std::endl<< up_left << up_right << down_left << down_right << std::endl << player << player_attack << player_move;
+	return 1;//jesli nie moze sie poruszyc ani zrobic ruchu to przegrywa
+}
+
+
+//This function cleares moddified values in the board array
+//with "delete_moves" value set to 1, it will delete as well selected_piece in struct allowed_moves
+void clear_moves(int board[10][10], int delete_moves, struct wymuszone_ruchy& allowed_moves) {
+	if (delete_moves == 1) {
+		allowed_moves.selected_piece_x = -1;
+		allowed_moves.selected_piece_y = -1;
+	}
+	for (int i = 0; i < 10; i++) {
+		for (int j = 0; j < 10; j++) {
+			if (board[i][j] == 99) {
+				board[i][j] = 1;
+			}
+			if (delete_moves == 1) {
+				if (board[i][j] > 50) {
+					board[i][j] = board[i][j] - 50;
+				}
+			}
+		}
+	}
+}
+
+//This function checks where the piece can move (move but without a attacks)
+void check_moves(int board[10][10], struct wymuszone_ruchy& allowed_moves) {
+	int selected_x = allowed_moves.selected_piece_x;
+	int selected_y = allowed_moves.selected_piece_y;
+	clear_moves(board, 0, allowed_moves);
+	if (board[selected_y][selected_x] == 2 || board[selected_y][selected_x] == 20 || board[selected_y][selected_x] == 30) {
+		if (board[selected_y + 1][selected_x - 1] == 1) {
+			board[selected_y + 1][selected_x - 1] = 99;
+			std::cout << "dol_lewo";
+		}
+		if (board[selected_y + 1][selected_x + 1] == 1) {
+			board[selected_y + 1][selected_x + 1] = 99;
+			std::cout << "dol_prawo";
+		}
+	}
+	if (board[selected_y][selected_x] == 3 || board[selected_y][selected_x] == 20 || board[selected_y][selected_x] == 30) {
+		if (board[selected_y - 1][selected_x - 1] == 1) {
+			board[selected_y - 1][selected_x - 1] = 99;
+			std::cout << "gora_lewo";
+		}
+		if (board[selected_y - 1][selected_x + 1] == 1) {
+			board[selected_y - 1][selected_x + 1] = 99;
+			std::cout << "gora_prawo";
+		}
+	}
+}
+
+//This function delete the piece after a attack
+void delete_piece_between(int board[10][10], int i, int j, int y, int x) {
+	//i, j - piece coordinate
+	//y, x - destination coordinate
+
+	if (y > i) { //dol
+		if (x > j) { //dol_prawo
+			board[i + 1][j + 1] = 1;
+		}
+		if (x < j) { //dol_lewo
+			board[i + 1][j - 1] = 1;
+		}
+	}
+	if (y < i) {//gora
+		if (x > j) { //gora_prawo
+			board[i - 1][j + 1] = 1;
+		}
+		if (x < j) { //gora_lewo
+			board[i - 1][j - 1] = 1;
+		}
+	}
+
+}
+
+
+
+////////////////////////////////////////////////////////
+/////////////////                 //////////////////////
+/////////////////        AI       //////////////////////
+/////////////////                 //////////////////////
+////////////////////////////////////////////////////////
+
+int validate(int board[10][10], int player) {
+	int pieces_value = 0;
+	int enemy_pieces_value = 0;
+
+	for (int i = 0; i < 10; i++) {
+		for (int j = 0; j < 10; j++) {
+			if (board[i][j] == 2 || board[i][j] == 52) {
+				//if this is a piece of player one
+				pieces_value = pieces_value + 10;
+				//positioning of this piece
+				if (i == 8) {
+					pieces_value = pieces_value + 5; // this piece will advance in 1 move. Value it little more
+				}else if (i == 7) {
+					pieces_value = pieces_value + 3; // this piece will advance in 2 moves. Value it little more
+
+				}else if (i == 6) {
+					pieces_value = pieces_value + 2; // this piece will advance in 3 moves. Value it little more 
+				}
+
+				if (j == 9 || j == 0) {
+					pieces_value = pieces_value + 2; // This piece is on the border, soo it can't be attacked. Value it little more
+				}
+
+			}else if (board[i][j] == 20 || board[i][j] == 70) {
+				//If this is a king of player one
+				pieces_value = pieces_value + 20;
+				//positioning of this king
+				if (i > 0 && i < 9 && j < 9 && j> 0) {
+					pieces_value = pieces_value + 3; // This king is more in the middle, so it can make more moves. Value it little more
+				}
+			
+
+			}else if (board[i][j] == 3 || board[i][j] == 53) {
+				//If this is a piece of player two
+				enemy_pieces_value = enemy_pieces_value + 10;
+				if (i == 1) {
+					enemy_pieces_value = enemy_pieces_value + 5; // this piece will advance in 1 move. Value it little more
+				}
+				else if (i == 2) {
+					enemy_pieces_value = enemy_pieces_value + 3; // this piece will advance in 2 moves. Value it little more
+
+				}
+				else if (i == 3) {
+					enemy_pieces_value = enemy_pieces_value + 2; // this piece will advance in 3 moves. Value it little more 
+				}
+
+				if (j == 9 || j == 0) {
+					enemy_pieces_value = enemy_pieces_value + 2; // This piece is on the border, soo it can't be attacked. Value it little more
+				}
+
+
+			
+			}else if (board[i][j] == 30 || board[i][j] == 80) {
+				//If this is a king of player two
+				enemy_pieces_value = enemy_pieces_value + 20;
+				if (i > 0 && i < 9 && j < 9 && j> 0) {
+					enemy_pieces_value = enemy_pieces_value + 3; // This king is more in the middle, so it can make more moves. Value it little more
+				}
+
+			}
+		}
+	}
+
+	if (player == 2) {
+		return  pieces_value - enemy_pieces_value;
+	}
+	else {
+		return enemy_pieces_value - pieces_value;
+	}
+}
+
+void ai_move(int board[10][10]){
+	int recursion_depth = 5;
+
+
+}
+
+
+int main()
+{
+	std::srand(static_cast<unsigned int>(std::time(NULL)));
+
+	// Define some constants
+	const int gameWidth = 960;
+	const int gameHeight = 960;
+	const int board_start_position_x = 0;
+	const int board_start_position_y = 0;
+	int game_status = -1;
+
+	//inicializacja
+	int board_10x10[10][10] = {{2,0,2,0,2,0,2,0,2,0},
+								{0,2,0,2,0,2,0,2,0,2},
+								{2,0,2,0,2,0,2,0,2,0},
+								{0,20,0,20,0,2,0,2,0,2},
+								{1,0,1,0,1,0,1,0,1,0},
+								{0,1,0,1,0,1,0,1,0,1},
+								{3,0,3,0,30,0,30,0,3,0},
+								{0,3,0,3,0,3,0,3,0,3},
+								{3,0,3,0,3,0,3,0,3,0},
+								{0,3,0,3,0,3,0,3,0,3} };
+
+	/*int board_10x10[10][10]{{2, 0, 2, 0, 2, 0, 2, 0, 2, 0},
+								{ 0,2,0,2,0,2,0,2,0,2 },
+								{ 2,0,2,0,2,0,2,0,2,0 },
+								{ 0,2,0,2,0,2,0,2,0,2 },
+								{ 1,0,1,0,1,0,1,0,1,0 },
+								{ 0,1,0,1,0,2,0,2,0,1 },
+								{ 1,0,1,0,1,0,30,0,1,0 },
+								{ 0,1,0,1,0,2,0,2,0,1 },
+								{ 1,0,1,0,1,0,1,0,1,0 },
+								{ 0,1,0,1,0,1,0,1,0,1 } };*/
+
+
+
+
+
+	// Create the window of the application
+	//sf::RenderWindow window(sf::VideoMode(gameWidth, gameHeight, 32), "Warcaby",
+	//	sf::Style::Titlebar | sf::Style::Resize | sf::Style::Close);
+	//window.setVerticalSyncEnabled(true);
+
+
+
+
+	// Load the text font
+	sf::Font font;
+	if (!font.loadFromFile("resources/sansation.ttf"))
+		return EXIT_FAILURE;
+
+
+	//sf::Texture pionki_czarne;
+	//if (!game_board.loadFromFile("pionek_czarny.png"))
+	//	return EXIT_FAILURE;
+	//sf::Sprite sprite_game_board(pionki_czarne);
+
+
+
+
+
+	sf::Clock clock;
+	int game_state = 0;
+	struct wymuszone_ruchy allowed_moves;
+	allowed_moves.selected_piece_x = -1;
+	allowed_moves.selected_piece_y = -1;
+	while (window.isOpen())
+	{
+		// Handle events
+		sf::Event event;
+		while (window.pollEvent(event))
+		{
+			// Window closed or escape key pressed: exit
+			if ((event.type == sf::Event::Closed) ||
+				((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::Escape)))
+			{
+				window.close();
+				break;
+			}
+			//If was clicked Mouse button
+			if (event.type == sf::Event::MouseButtonPressed)
+			{
+				//If clicked mouse button is left
+				if (event.mouseButton.button == sf::Mouse::Left)
+				{
+					//if clicked mouse position is on the board
+					if (event.mouseButton.x >= board_start_position_x && event.mouseButton.y >= board_start_position_y) {
+						//Checks if you can continue attack, and makes this move a only validate move.
+						if (check_attack_opportunity(turn, board_10x10, allowed_moves.continue_i, allowed_moves.continue_j)) {
+							allowed_moves.wymus = 1;
+						}
+						sf::Vector2u rozmiar;
+						rozmiar = window.getSize();
+						//For testing purpose
+						//wyswietl_tablice(board_10x10);
+						//Change mouse_position to array coordinate
+						std::cout << validate(board_10x10, turn) << std::endl;
+						int coordinate_x = event.mouseButton.x / (rozmiar.x / 10);
+						int coordinate_y = event.mouseButton.y / (rozmiar.y / 10);
+						//If clicked position is a validate move (value 99 means that you can move to this possition) and i have selected piece previously
+						if (board_10x10[coordinate_y][coordinate_x] == 99 && allowed_moves.selected_piece_x != -1) {
+							board_10x10[coordinate_y][coordinate_x] = board_10x10[allowed_moves.selected_piece_y][allowed_moves.selected_piece_x];
+							board_10x10[allowed_moves.selected_piece_y][allowed_moves.selected_piece_x] = 1;
+							//If it was attack move, then delete a piece that you had attack
+							if (allowed_moves.wymus == 1) {
+								delete_piece_between(board_10x10, allowed_moves.selected_piece_y, allowed_moves.selected_piece_x, coordinate_y, coordinate_x);
+
+								allowed_moves.continue_i = coordinate_y;
+								allowed_moves.continue_j = coordinate_x;
+								clear_moves(board_10x10, 1, allowed_moves);
+								//If you dont have opportunity for next attack then clear the valuse that you had set in board and change player turn
+								if (!check_attack_opportunity(turn, board_10x10, allowed_moves.continue_i, allowed_moves.continue_j)) {
+									clear_moves(board_10x10, 1, allowed_moves);
+									allowed_moves.wymus = -1;
+									allowed_moves.continue_i = -1;
+									allowed_moves.continue_j = -1;
+									if (turn == 2) { turn = 3; }
+									else if (turn == 3) { turn = 2; }
+								}
+							}
+							else {
+								clear_moves(board_10x10, 1, allowed_moves);
+								allowed_moves.wymus = -1;
+								allowed_moves.continue_i = -1;
+								allowed_moves.continue_j = -1;
+								if (turn == 2) { turn = 3; }
+								else if (turn == 3) { turn = 2; }
+							}
+						}else if (((board_10x10[coordinate_y][coordinate_x] == turn || board_10x10[coordinate_y][coordinate_x] == turn * 10) && allowed_moves.wymus != 1)) {
+							//If you choose a piece that is yours (a piece or king) and you dont have attack opportunity, then make this choosen piece a selected one
+							allowed_moves.selected_piece_x = coordinate_x;
+							allowed_moves.selected_piece_y = coordinate_y;
+							check_moves(board_10x10, allowed_moves);
+						}
+						else if (allowed_moves.wymus == 1) {
+							if (board_10x10[coordinate_y][coordinate_x] == turn + 50 || board_10x10[coordinate_y][coordinate_x] == (turn * 10) + 50) {
+								//If i choose a piece that is allowed to attack  (value + 50 means that it is a piece that can attack another piece)
+								clear_moves(board_10x10, 0, allowed_moves);
+								allowed_moves.selected_piece_x = coordinate_x;
+								allowed_moves.selected_piece_y = coordinate_y;
+								//Check and draw the attack opportunities on the screen
+								can_attackk(turn, board_10x10, coordinate_y, coordinate_x);
+							}
+							else {
+								clear_moves(board_10x10, 0, allowed_moves);
+							}
+						}
+						if (can_move(board_10x10) == 1 && game_state != -1) {
+							if (turn == 2) {
+								std::cout << "Gracz bialy wygral!";
+								game_state = -1;
+							}
+							if (turn == 3) {
+								std::cout << "Gracz czarny wygral!";
+								game_state = -1;
+							}
+						}
+						//std::cout << "mouse x: " << coordinate_x;
+						//std::cout << " mouse y: " << coordinate_y << std::endl;
+						//std::cout << "Ruch : " << turn << std::endl;
+					}
+				}
+			}
+
+		}
+
+
+		// Clear the window
+		window.clear(sf::Color(0, 0, 0, 0));
+		// Draw things on the window
+		draw_game_state(board_10x10, board_start_position_x, board_start_position_y);
+
+		// Display things on screen
+		window.display();
+		//game_state
+	}
+
+	return EXIT_SUCCESS;
+}
+
+
+// Run program: Ctrl + F5 or Debug > Start Without Debugging menu
+// Debug program: F5 or Debug > Start Debugging menu
+
+// Tips for Getting Started: 
+//   1. Use the Solution Explorer window to add/manage files
+//   2. Use the Team Explorer window to connect to source control
+//   3. Use the Output window to see build output and other messages
+//   4. Use the Error List window to view errors
+//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
+//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
