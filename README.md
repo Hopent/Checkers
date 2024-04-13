@@ -24,3 +24,10 @@ This project is the main file of the checkers game. It includes various function
 
 ## Algorithm
 The AI opponent in the game utilizes the minimax algorithm with alpha-beta pruning for optimizing the search.
+
+
+# Menu główne:
+![Zdjęcie przedstawia menu główne gry](MENU.PNG)
+
+# Przykład rozgrywki
+![Zdjęcie przedstawia rozgrywke w warcaby](GAME.PNG)
