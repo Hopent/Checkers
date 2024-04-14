@@ -27,7 +27,7 @@ The AI opponent in the game utilizes the minimax algorithm with alpha-beta pruni
 
 
 # Menu główne:
-![Zdjęcie przedstawia menu główne gry](MENU.PNG)
+![Zdjęcie przedstawia menu główne gry](/resources/MENU_AI.PNG)
 
 # Przykład rozgrywki
-![Zdjęcie przedstawia rozgrywke w warcaby](GAME.PNG)
+![Zdjęcie przedstawia rozgrywke w warcaby](/resources/GAME.PNG)
